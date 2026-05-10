@@ -1,0 +1,996 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>XEROZ — Your Personal AI</title>
+<link href="https://fonts.googleapis.com/css2?family=Clash+Display:wght@400;600;700&family=Cabinet+Grotesk:wght@300;400;500&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #080b12;
+  --surface: #0e1420;
+  --surface2: #141c2e;
+  --border: #1e2a42;
+  --accent: #4f8eff;
+  --accent2: #a78bfa;
+  --accent3: #34d399;
+  --text: #e2e8f8;
+  --muted: #64748b;
+  --user-bubble: #1e3a5f;
+  --ai-bubble: #0e1420;
+  --danger: #f87171;
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: 'Cabinet Grotesk', sans-serif;
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* ─── NOISE TEXTURE ─── */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.03'/%3E%3C/svg%3E");
+  pointer-events: none;
+  z-index: 0;
+  opacity: 0.4;
+}
+
+/* ─── AMBIENT GLOW ─── */
+.glow {
+  position: fixed;
+  border-radius: 50%;
+  filter: blur(120px);
+  pointer-events: none;
+  z-index: 0;
+}
+.glow1 { width: 600px; height: 600px; background: rgba(79,142,255,0.06); top: -200px; right: -100px; }
+.glow2 { width: 400px; height: 400px; background: rgba(167,139,250,0.05); bottom: -100px; left: -100px; }
+
+/* ─── SIDEBAR ─── */
+.sidebar {
+  position: fixed;
+  left: 0; top: 0; bottom: 0;
+  width: 260px;
+  background: var(--surface);
+  border-right: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  z-index: 10;
+  transition: transform 0.3s ease;
+}
+
+.sidebar-header {
+  padding: 24px 20px 16px;
+  border-bottom: 1px solid var(--border);
+}
+
+.logo {
+  font-family: 'Clash Display', sans-serif;
+  font-size: 1.5rem;
+  font-weight: 700;
+  letter-spacing: -0.5px;
+  background: linear-gradient(135deg, var(--accent), var(--accent2));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+.logo-sub {
+  font-size: 0.72rem;
+  color: var(--muted);
+  margin-top: 2px;
+  font-family: 'JetBrains Mono', monospace;
+  letter-spacing: 1px;
+}
+
+/* Memory panel */
+.memory-panel {
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+.memory-label {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.6rem;
+  letter-spacing: 2px;
+  color: var(--accent3);
+  margin-bottom: 10px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.memory-label::before { content: '●'; font-size: 0.5rem; animation: blink 2s ease-in-out infinite; }
+@keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.3} }
+
+.memory-items { display: flex; flex-direction: column; gap: 6px; }
+.memory-item {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 8px 10px;
+  font-size: 0.78rem;
+  color: var(--text);
+  line-height: 1.4;
+  position: relative;
+  animation: slideIn 0.3s ease;
+}
+@keyframes slideIn { from{opacity:0;transform:translateY(-4px)} to{opacity:1;transform:translateY(0)} }
+
+.memory-item .mem-key {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.6rem;
+  color: var(--accent);
+  margin-bottom: 2px;
+}
+.memory-delete {
+  position: absolute;
+  top: 6px; right: 8px;
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 0.7rem;
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+.memory-item:hover .memory-delete { opacity: 1; }
+.memory-delete:hover { color: var(--danger); }
+
+.no-memory {
+  font-size: 0.78rem;
+  color: var(--muted);
+  font-style: italic;
+  text-align: center;
+  padding: 8px 0;
+}
+
+/* Conversations list */
+.conv-panel {
+  flex: 1;
+  overflow-y: auto;
+  padding: 12px;
+}
+.conv-label {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.6rem;
+  letter-spacing: 2px;
+  color: var(--muted);
+  padding: 0 8px;
+  margin-bottom: 8px;
+}
+.conv-item {
+  padding: 10px 12px;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 0.82rem;
+  color: var(--muted);
+  transition: all 0.15s;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin-bottom: 2px;
+}
+.conv-item:hover { background: var(--surface2); color: var(--text); }
+.conv-item.active { background: var(--surface2); color: var(--text); border-left: 2px solid var(--accent); }
+
+.new-chat-btn {
+  margin: 12px;
+  padding: 10px;
+  background: linear-gradient(135deg, rgba(79,142,255,0.15), rgba(167,139,250,0.15));
+  border: 1px solid rgba(79,142,255,0.3);
+  border-radius: 8px;
+  color: var(--accent);
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.68rem;
+  letter-spacing: 1px;
+  cursor: pointer;
+  text-align: center;
+  transition: all 0.2s;
+}
+.new-chat-btn:hover {
+  background: linear-gradient(135deg, rgba(79,142,255,0.25), rgba(167,139,250,0.25));
+  border-color: var(--accent);
+}
+
+/* ─── MAIN CHAT ─── */
+.main {
+  margin-left: 260px;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  position: relative;
+  z-index: 1;
+}
+
+/* Top bar */
+.topbar {
+  padding: 16px 28px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: rgba(8,11,18,0.8);
+  backdrop-filter: blur(12px);
+  flex-shrink: 0;
+}
+.topbar-left { display: flex; align-items: center; gap: 12px; }
+.ai-avatar {
+  width: 36px; height: 36px;
+  border-radius: 10px;
+  background: linear-gradient(135deg, var(--accent), var(--accent2));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1rem;
+  flex-shrink: 0;
+}
+.ai-name {
+  font-family: 'Clash Display', sans-serif;
+  font-weight: 600;
+  font-size: 1rem;
+}
+.ai-status {
+  font-size: 0.72rem;
+  color: var(--accent3);
+  font-family: 'JetBrains Mono', monospace;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+.status-dot {
+  width: 6px; height: 6px;
+  background: var(--accent3);
+  border-radius: 50%;
+  animation: blink 2s ease-in-out infinite;
+}
+
+.topbar-right { display: flex; gap: 8px; }
+.top-btn {
+  padding: 7px 14px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--muted);
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.65rem;
+  letter-spacing: 1px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.top-btn:hover { color: var(--text); border-color: var(--accent); }
+
+/* ─── MESSAGES ─── */
+.messages {
+  flex: 1;
+  overflow-y: auto;
+  padding: 28px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  scroll-behavior: smooth;
+}
+
+.messages::-webkit-scrollbar { width: 4px; }
+.messages::-webkit-scrollbar-track { background: transparent; }
+.messages::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+/* Welcome screen */
+.welcome {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 40px;
+  gap: 20px;
+}
+.welcome-avatar {
+  width: 80px; height: 80px;
+  border-radius: 24px;
+  background: linear-gradient(135deg, var(--accent), var(--accent2));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 2.5rem;
+  animation: float 4s ease-in-out infinite;
+  box-shadow: 0 0 40px rgba(79,142,255,0.3);
+}
+@keyframes float {
+  0%,100%{transform:translateY(0)} 50%{transform:translateY(-8px)}
+}
+.welcome h1 {
+  font-family: 'Clash Display', sans-serif;
+  font-size: 2rem;
+  font-weight: 700;
+  background: linear-gradient(135deg, var(--text), var(--muted));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+.welcome p { color: var(--muted); font-size: 0.95rem; line-height: 1.6; max-width: 400px; }
+
+.suggestion-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: center;
+  margin-top: 8px;
+}
+.chip {
+  padding: 8px 16px;
+  border-radius: 100px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--muted);
+  font-size: 0.8rem;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+.chip:hover {
+  border-color: var(--accent);
+  color: var(--text);
+  background: rgba(79,142,255,0.08);
+}
+
+/* Message bubbles */
+.msg {
+  display: flex;
+  gap: 12px;
+  animation: msgIn 0.3s ease;
+  max-width: 780px;
+}
+@keyframes msgIn { from{opacity:0;transform:translateY(8px)} to{opacity:1;transform:translateY(0)} }
+
+.msg.user { align-self: flex-end; flex-direction: row-reverse; }
+.msg.ai { align-self: flex-start; }
+
+.msg-avatar {
+  width: 32px; height: 32px;
+  border-radius: 10px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.9rem;
+}
+.msg.ai .msg-avatar {
+  background: linear-gradient(135deg, var(--accent), var(--accent2));
+}
+.msg.user .msg-avatar {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+}
+
+.msg-content { max-width: 600px; }
+.msg-bubble {
+  padding: 12px 16px;
+  border-radius: 16px;
+  font-size: 0.9rem;
+  line-height: 1.7;
+}
+.msg.ai .msg-bubble {
+  background: var(--ai-bubble);
+  border: 1px solid var(--border);
+  border-top-left-radius: 4px;
+  color: var(--text);
+}
+.msg.user .msg-bubble {
+  background: var(--user-bubble);
+  border: 1px solid rgba(79,142,255,0.2);
+  border-top-right-radius: 4px;
+  color: var(--text);
+}
+.msg-time {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.58rem;
+  color: var(--muted);
+  margin-top: 5px;
+  padding: 0 4px;
+}
+.msg.user .msg-time { text-align: right; }
+
+/* Typing indicator */
+.typing-indicator {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+  padding: 14px 16px;
+}
+.typing-dot {
+  width: 7px; height: 7px;
+  border-radius: 50%;
+  background: var(--accent);
+  animation: typingBounce 1.2s ease-in-out infinite;
+  opacity: 0.6;
+}
+.typing-dot:nth-child(2) { animation-delay: 0.15s; }
+.typing-dot:nth-child(3) { animation-delay: 0.3s; }
+@keyframes typingBounce {
+  0%,60%,100%{transform:translateY(0)} 30%{transform:translateY(-6px)}
+}
+
+/* ─── INPUT AREA ─── */
+.input-area {
+  padding: 16px 28px 24px;
+  border-top: 1px solid var(--border);
+  background: rgba(8,11,18,0.9);
+  backdrop-filter: blur(12px);
+  flex-shrink: 0;
+}
+
+.input-wrap {
+  display: flex;
+  gap: 10px;
+  align-items: flex-end;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 10px 14px;
+  transition: border-color 0.2s;
+}
+.input-wrap:focus-within { border-color: var(--accent); }
+
+.msg-input {
+  flex: 1;
+  background: transparent;
+  border: none;
+  outline: none;
+  color: var(--text);
+  font-family: 'Cabinet Grotesk', sans-serif;
+  font-size: 0.92rem;
+  resize: none;
+  max-height: 140px;
+  line-height: 1.5;
+}
+.msg-input::placeholder { color: var(--muted); }
+
+.send-btn {
+  width: 36px; height: 36px;
+  border-radius: 10px;
+  background: linear-gradient(135deg, var(--accent), var(--accent2));
+  border: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1rem;
+  transition: all 0.2s;
+  flex-shrink: 0;
+}
+.send-btn:hover { transform: scale(1.05); box-shadow: 0 0 16px rgba(79,142,255,0.4); }
+.send-btn:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
+
+.input-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 8px;
+  padding: 0 2px;
+}
+.input-hint {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.58rem;
+  color: var(--muted);
+  letter-spacing: 0.5px;
+}
+.memory-toggle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.58rem;
+  color: var(--accent3);
+  cursor: pointer;
+  letter-spacing: 0.5px;
+}
+.toggle-dot {
+  width: 8px; height: 8px;
+  border-radius: 50%;
+  background: var(--accent3);
+}
+
+/* ─── MEMORY MODAL ─── */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.7);
+  backdrop-filter: blur(4px);
+  z-index: 100;
+  display: none;
+  align-items: center;
+  justify-content: center;
+}
+.modal-overlay.open { display: flex; }
+.modal {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 28px;
+  width: 420px;
+  max-width: 90vw;
+  animation: modalIn 0.25s ease;
+}
+@keyframes modalIn { from{opacity:0;transform:scale(0.95)} to{opacity:1;transform:scale(1)} }
+.modal h3 {
+  font-family: 'Clash Display', sans-serif;
+  font-size: 1.1rem;
+  margin-bottom: 6px;
+}
+.modal p { font-size: 0.82rem; color: var(--muted); margin-bottom: 18px; line-height: 1.5; }
+.modal input {
+  width: 100%;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px 14px;
+  color: var(--text);
+  font-family: 'Cabinet Grotesk', sans-serif;
+  font-size: 0.88rem;
+  outline: none;
+  margin-bottom: 10px;
+}
+.modal input:focus { border-color: var(--accent); }
+.modal-btns { display: flex; gap: 8px; margin-top: 6px; }
+.modal-btn {
+  flex: 1;
+  padding: 10px;
+  border-radius: 8px;
+  border: none;
+  cursor: pointer;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.68rem;
+  letter-spacing: 1px;
+  transition: all 0.15s;
+}
+.modal-btn.primary {
+  background: linear-gradient(135deg, var(--accent), var(--accent2));
+  color: white;
+}
+.modal-btn.primary:hover { opacity: 0.9; }
+.modal-btn.secondary {
+  background: var(--surface2);
+  color: var(--muted);
+  border: 1px solid var(--border);
+}
+.modal-btn.secondary:hover { color: var(--text); }
+
+/* Responsive */
+@media (max-width: 768px) {
+  .sidebar { transform: translateX(-100%); }
+  .main { margin-left: 0; }
+}
+</style>
+</head>
+<body>
+
+<div class="glow glow1"></div>
+<div class="glow glow2"></div>
+
+<!-- ─── SIDEBAR ─── -->
+<aside class="sidebar">
+  <div class="sidebar-header">
+    <div class="logo">XEROZ</div>
+    <div class="logo-sub">YOUR PERSONAL AI</div>
+  </div>
+
+  <!-- Memory -->
+  <div class="memory-panel">
+    <div class="memory-label">MEMORY ACTIVE</div>
+    <div class="memory-items" id="memory-list">
+      <div class="no-memory">No memories yet. Start chatting!</div>
+    </div>
+  </div>
+
+  <!-- Conversations -->
+  <div class="conv-panel">
+    <div class="conv-label">CONVERSATIONS</div>
+    <div id="conv-list"></div>
+  </div>
+
+  <button class="new-chat-btn" onclick="newChat()">+ NEW CONVERSATION</button>
+</aside>
+
+<!-- ─── MAIN ─── -->
+<div class="main">
+
+  <!-- Topbar -->
+  <div class="topbar">
+    <div class="topbar-left">
+      <div class="ai-avatar">🤖</div>
+      <div>
+        <div class="ai-name">XEROZ</div>
+        <div class="ai-status"><span class="status-dot"></span> Online · Ready</div>
+      </div>
+    </div>
+    <div class="topbar-right">
+      <button class="top-btn" onclick="openMemoryModal()">＋ ADD MEMORY</button>
+      <button class="top-btn" onclick="clearChat()">CLEAR CHAT</button>
+    </div>
+  </div>
+
+  <!-- Messages -->
+  <div class="messages" id="messages">
+    <div class="welcome" id="welcome">
+      <div class="welcome-avatar">🤖</div>
+      <h1>Hey, I'm XEROZ</h1>
+      <p>Your personal AI assistant — I remember everything you tell me. I'm here just for you, ready to help with anything.</p>
+      <div class="suggestion-chips">
+        <div class="chip" onclick="sendSuggestion('Remember that my name is...')">💾 Save my name</div>
+        <div class="chip" onclick="sendSuggestion('What can you help me with?')">💡 What can you do?</div>
+        <div class="chip" onclick="sendSuggestion('I am building a platform called WorldPulse. Remember this.')">🌍 Tell you about WorldPulse</div>
+        <div class="chip" onclick="sendSuggestion('What do you remember about me?')">🧠 What do you know about me?</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Input -->
+  <div class="input-area">
+    <div class="input-wrap">
+      <textarea class="msg-input" id="msg-input" placeholder="Talk to ARIA... she remembers everything." rows="1"
+        onkeydown="handleKey(event)" oninput="autoResize(this)"></textarea>
+      <button class="send-btn" id="send-btn" onclick="sendMessage()">➤</button>
+    </div>
+    <div class="input-footer">
+      <span class="input-hint">ENTER TO SEND · SHIFT+ENTER FOR NEW LINE</span>
+      <span class="memory-toggle"><span class="toggle-dot"></span> MEMORY ON</span>
+    </div>
+  </div>
+
+</div>
+
+<!-- ─── MEMORY MODAL ─── -->
+<div class="modal-overlay" id="modal">
+  <div class="modal">
+    <h3>Add a Memory</h3>
+    <p>Tell ARIA something to remember permanently. She'll use this in every future conversation.</p>
+    <input type="text" id="mem-key" placeholder="Category (e.g. My Name, My Project, My Goal)">
+    <input type="text" id="mem-val" placeholder="What to remember (e.g. I am building WorldPulse)">
+    <div class="modal-btns">
+      <button class="modal-btn secondary" onclick="closeModal()">CANCEL</button>
+      <button class="modal-btn primary" onclick="saveMemory()">SAVE MEMORY</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ════════════════════════════════════════
+// XEROZ — Personal AI by [Your Name]
+// GitHub: https://github.com/yourusername/xeroz
+// ════════════════════════════════════════
+
+// 🔑 ADD YOUR ANTHROPIC API KEY HERE
+// Get one free at: https://console.anthropic.com
+const ANTHROPIC_API_KEY = 'YOUR_API_KEY_HERE';
+
+// ─── STATE ───
+let memories = JSON.parse(localStorage.getItem('xeroz_memories') || '[]');
+let conversations = JSON.parse(localStorage.getItem('xeroz_conversations') || '[]');
+let currentConvId = null;
+let currentMessages = []; // {role, content}
+let isThinking = false;
+
+// ─── INIT ───
+renderMemories();
+renderConversations();
+if(conversations.length > 0) {
+  loadConversation(conversations[0].id);
+}
+
+// ─── MEMORY ───
+function buildSystemPrompt() {
+  let prompt = `You are XEROZ, a warm, intelligent, highly personal AI assistant. You speak in a friendly, direct tone — like a smart friend who genuinely cares. You are NOT a generic assistant; you are THIS person's personal AI.
+
+Key behaviors:
+- Always remember and reference the user's memories naturally in conversation
+- Be proactive: if something they say connects to a memory, mention it
+- Keep responses concise but thoughtful — not too long
+- If the user asks you to remember something, confirm you will and add it to memory naturally
+- Never say "As an AI" — you are XEROZ, their personal assistant
+- Today's date: ${new Date().toDateString()}`;
+
+  if(memories.length > 0) {
+    prompt += `\n\n=== WHAT YOU KNOW ABOUT THIS PERSON ===\n`;
+    memories.forEach(m => {
+      prompt += `• ${m.key}: ${m.value}\n`;
+    });
+    prompt += `\nUse this naturally. Reference it when relevant. This person trusts you with this information.`;
+  } else {
+    prompt += `\n\nYou don't know much about this person yet. Try to learn their name, goals, and what they're working on early in conversation.`;
+  }
+
+  return prompt;
+}
+
+function renderMemories() {
+  const list = document.getElementById('memory-list');
+  if(memories.length === 0) {
+    list.innerHTML = '<div class="no-memory">No memories yet. Start chatting!</div>';
+    return;
+  }
+  list.innerHTML = memories.map((m, i) => `
+    <div class="memory-item">
+      <div class="mem-key">${m.key.toUpperCase()}</div>
+      ${m.value}
+      <span class="memory-delete" onclick="deleteMemory(${i})">✕</span>
+    </div>
+  `).join('');
+}
+
+function saveMemory() {
+  const key = document.getElementById('mem-key').value.trim();
+  const val = document.getElementById('mem-val').value.trim();
+  if(!key || !val) return;
+  memories.push({ key, value: val, time: Date.now() });
+  localStorage.setItem('xeroz_memories', JSON.stringify(memories));
+  renderMemories();
+  closeModal();
+  document.getElementById('mem-key').value = '';
+  document.getElementById('mem-val').value = '';
+}
+
+function deleteMemory(i) {
+  memories.splice(i, 1);
+  localStorage.setItem('xeroz_memories', JSON.stringify(memories));
+  renderMemories();
+}
+
+function openMemoryModal() { document.getElementById('modal').classList.add('open'); }
+function closeModal() { document.getElementById('modal').classList.remove('open'); }
+
+// Auto-detect memory requests from AI responses
+function detectAndSaveMemory(userMsg, aiResponse) {
+  const memTriggers = ['remember', 'my name is', 'i am', "i'm working on", 'my project', 'i live', 'my goal'];
+  const lower = userMsg.toLowerCase();
+  if(memTriggers.some(t => lower.includes(t))) {
+    // Extract name
+    const nameMatch = userMsg.match(/my name is ([A-Za-z]+)/i);
+    if(nameMatch) {
+      const exists = memories.find(m => m.key.toLowerCase() === 'name');
+      if(!exists) {
+        memories.push({ key: 'Name', value: nameMatch[1], time: Date.now() });
+        localStorage.setItem('xeroz_memories', JSON.stringify(memories));
+        renderMemories();
+      }
+    }
+    // Extract project
+    const projMatch = userMsg.match(/(?:building|working on|project is|called)\s+([A-Za-z\s]+)/i);
+    if(projMatch) {
+      const val = projMatch[1].trim();
+      if(val.length > 2 && val.length < 50) {
+        const exists = memories.find(m => m.value.toLowerCase().includes(val.toLowerCase()));
+        if(!exists) {
+          memories.push({ key: 'Project', value: val, time: Date.now() });
+          localStorage.setItem('xeroz_memories', JSON.stringify(memories));
+          renderMemories();
+        }
+      }
+    }
+  }
+}
+
+// ─── CONVERSATIONS ───
+function newChat() {
+  currentConvId = Date.now().toString();
+  currentMessages = [];
+  const conv = { id: currentConvId, title: 'New conversation', time: Date.now(), messages: [] };
+  conversations.unshift(conv);
+  localStorage.setItem('xeroz_conversations', JSON.stringify(conversations));
+  renderConversations();
+
+  // Reset UI
+  const msgs = document.getElementById('messages');
+  msgs.innerHTML = `<div class="welcome" id="welcome">
+    <div class="welcome-avatar">🤖</div>
+    <h1>Hey, I'm XEROZ</h1>
+    <p>Your personal AI assistant — I remember everything you tell me.</p>
+    <div class="suggestion-chips">
+      <div class="chip" onclick="sendSuggestion('Remember that my name is...')">💾 Save my name</div>
+      <div class="chip" onclick="sendSuggestion('What can you help me with?')">💡 What can you do?</div>
+      <div class="chip" onclick="sendSuggestion('I am building WorldPulse. Remember this.')">🌍 Tell you about WorldPulse</div>
+      <div class="chip" onclick="sendSuggestion('What do you remember about me?')">🧠 What do you know?</div>
+    </div>
+  </div>`;
+}
+
+function loadConversation(id) {
+  const conv = conversations.find(c => c.id === id);
+  if(!conv) return;
+  currentConvId = id;
+  currentMessages = conv.messages || [];
+
+  // Render messages
+  const msgs = document.getElementById('messages');
+  msgs.innerHTML = '';
+  if(currentMessages.length === 0) {
+    msgs.innerHTML = `<div class="welcome" id="welcome">
+      <div class="welcome-avatar">🤖</div>
+      <h1>Hey, I'm XEROZ</h1>
+      <p>Your personal AI assistant — I remember everything you tell me.</p>
+      <div class="suggestion-chips">
+        <div class="chip" onclick="sendSuggestion('What do you remember about me?')">🧠 What do you know?</div>
+        <div class="chip" onclick="sendSuggestion('Help me with WorldPulse')">🌍 WorldPulse help</div>
+      </div>
+    </div>`;
+  } else {
+    currentMessages.forEach(m => {
+      if(m.role !== 'system') appendMessage(m.role, m.content, false);
+    });
+  }
+  renderConversations();
+}
+
+function renderConversations() {
+  const list = document.getElementById('conv-list');
+  if(conversations.length === 0) {
+    list.innerHTML = '<div style="padding:8px;font-size:0.75rem;color:var(--muted)">No conversations yet</div>';
+    return;
+  }
+  list.innerHTML = conversations.slice(0,20).map(c => `
+    <div class="conv-item ${c.id === currentConvId ? 'active' : ''}" onclick="loadConversation('${c.id}')">
+      ${c.title}
+    </div>
+  `).join('');
+}
+
+function saveCurrentConversation(title) {
+  const idx = conversations.findIndex(c => c.id === currentConvId);
+  if(idx !== -1) {
+    conversations[idx].messages = currentMessages;
+    if(title) conversations[idx].title = title.slice(0, 40);
+    localStorage.setItem('xeroz_conversations', JSON.stringify(conversations));
+    renderConversations();
+  }
+}
+
+// ─── CHAT ───
+function appendMessage(role, content, animate = true) {
+  const welcome = document.getElementById('welcome');
+  if(welcome) welcome.remove();
+
+  const msgs = document.getElementById('messages');
+  const time = new Date().toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'});
+
+  const div = document.createElement('div');
+  div.className = `msg ${role}`;
+  div.innerHTML = `
+    <div class="msg-avatar">${role === 'ai' ? '🤖' : '👤'}</div>
+    <div class="msg-content">
+      <div class="msg-bubble">${content.replace(/\n/g,'<br>')}</div>
+      <div class="msg-time">${time}</div>
+    </div>
+  `;
+  msgs.appendChild(div);
+  msgs.scrollTop = msgs.scrollHeight;
+}
+
+function showTyping() {
+  const msgs = document.getElementById('messages');
+  const div = document.createElement('div');
+  div.className = 'msg ai';
+  div.id = 'typing';
+  div.innerHTML = `
+    <div class="msg-avatar">🤖</div>
+    <div class="msg-content">
+      <div class="msg-bubble">
+        <div class="typing-indicator">
+          <div class="typing-dot"></div>
+          <div class="typing-dot"></div>
+          <div class="typing-dot"></div>
+        </div>
+      </div>
+    </div>
+  `;
+  msgs.appendChild(div);
+  msgs.scrollTop = msgs.scrollHeight;
+}
+
+function removeTyping() {
+  const t = document.getElementById('typing');
+  if(t) t.remove();
+}
+
+async function sendMessage() {
+  const input = document.getElementById('msg-input');
+  const text = input.value.trim();
+  if(!text || isThinking) return;
+
+  // Init conversation if needed
+  if(!currentConvId) newChat();
+
+  input.value = '';
+  input.style.height = 'auto';
+  isThinking = true;
+  document.getElementById('send-btn').disabled = true;
+
+  appendMessage('user', text);
+  currentMessages.push({ role: 'user', content: text });
+
+  showTyping();
+
+  try {
+    const res = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-api-key': ANTHROPIC_API_KEY, 'anthropic-version': '2023-06-01', 'anthropic-dangerous-allow-browser': 'true' },
+      body: JSON.stringify({
+        model: 'claude-opus-4-6' // Latest Claude model,
+        max_tokens: 1000,
+        system: buildSystemPrompt(),
+        messages: currentMessages.filter(m => m.role !== 'system').slice(-20)
+      })
+    });
+
+    const data = await res.json();
+    const reply = data.content?.map(c => c.text || '').join('') || 'Something went wrong. Please try again.';
+
+    removeTyping();
+    appendMessage('ai', reply);
+    currentMessages.push({ role: 'assistant', content: reply });
+
+    // Auto-detect memories
+    detectAndSaveMemory(text, reply);
+
+    // Save conversation with smart title
+    const title = currentMessages.length <= 2 ? text : conversations.find(c=>c.id===currentConvId)?.title || text;
+    saveCurrentConversation(title);
+
+  } catch(e) {
+    removeTyping();
+    appendMessage('ai', 'Connection error. Please check your internet and try again.');
+  }
+
+  isThinking = false;
+  document.getElementById('send-btn').disabled = false;
+  document.getElementById('msg-input').focus();
+}
+
+function sendSuggestion(text) {
+  document.getElementById('msg-input').value = text;
+  sendMessage();
+}
+
+function handleKey(e) {
+  if(e.key === 'Enter' && !e.shiftKey) {
+    e.preventDefault();
+    sendMessage();
+  }
+}
+
+function autoResize(el) {
+  el.style.height = 'auto';
+  el.style.height = Math.min(el.scrollHeight, 140) + 'px';
+}
+
+function clearChat() {
+  if(!confirm('Clear this conversation?')) return;
+  currentMessages = [];
+  saveCurrentConversation(null);
+  const msgs = document.getElementById('messages');
+  msgs.innerHTML = `<div class="welcome" id="welcome">
+    <div class="welcome-avatar">🤖</div>
+    <h1>Hey, I'm XEROZ</h1>
+    <p>Fresh start. What's on your mind?</p>
+    <div class="suggestion-chips">
+      <div class="chip" onclick="sendSuggestion('What do you remember about me?')">🧠 What do you know?</div>
+    </div>
+  </div>`;
+}
+
+// Close modal on overlay click
+document.getElementById('modal').addEventListener('click', function(e) {
+  if(e.target === this) closeModal();
+});
+
+// Init first conversation
+if(conversations.length === 0) newChat();
+else loadConversation(conversations[0].id);
+</script>
+</body>
+</html>
